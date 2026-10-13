@@ -1,0 +1,28 @@
+[project]
+name = "abom"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "oleg", email = "olegalexandrov468@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    # MCP SDK (1.x). ВАЖНО: 2.x несовместим с langchain-mcp-adapters,
+    # который импортирует mcp.server.fastmcp.
+    "mcp>=1.24,<2",
+    "langchain>=1.4,<2",
+    "langchain-core>=1.4,<2",
+    "langchain-deepseek>=1.1,<2",
+    "langchain-mcp-adapters>=0.3.2,<0.4",
+    "langgraph>=1.2,<2",
+    "pydantic>=2.7,<3",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+abom = "abom:main"
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
