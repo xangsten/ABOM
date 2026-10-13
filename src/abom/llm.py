@@ -17,6 +17,7 @@ from typing import TypeVar, cast
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.runnables import RunnableConfig
 from langchain_deepseek import ChatDeepSeek
 from pydantic import BaseModel
 
@@ -49,6 +50,7 @@ async def ainvoke_structured(
     llm: BaseChatModel,
     schema: type[T],
     messages: list[BaseMessage],
+    config: RunnableConfig | None = None,
 ) -> T:
     """Возвращает валидированный объект `schema`, обходя ограничения DeepSeek.
 
@@ -65,10 +67,10 @@ async def ainvoke_structured(
 
     try:
         structured = llm.with_structured_output(schema, method="json_mode")
-        return cast(T, await structured.ainvoke(msgs))
+        return cast(T, await structured.ainvoke(msgs, config))
     except Exception as exc:  # noqa: BLE001 — осознанный фолбэк
         print(f"[llm] json_mode недоступен ({exc.__class__.__name__}), "
               f"фолбэк на текстовый JSON")
-        response = await llm.ainvoke(msgs)
+        response = await llm.ainvoke(msgs, config)
         return schema.model_validate(parser.parse(as_text(response.content)))
 

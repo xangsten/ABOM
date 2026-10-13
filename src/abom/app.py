@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from abom.config import INITIAL_BODY, MAX_ITERATIONS, RECURSION_LIMIT
 from abom.graph import build_graph
 from abom.state import BodyState
+from abom.usage import TOTAL
 
 
 def _require_api_key() -> None:
@@ -31,6 +32,8 @@ def _print_result(result: dict) -> None:
               f"vol={b['blood_volume']:.2f}, "
               f"Na={b['sodium']:.1f}, GFR={b['gfr']:.1f}, "
               f"UO={b['urine_output']:.2f}")
+
+    print(f"\n===== TOKENS =====\n  {TOTAL.summary()}")
 
 
 async def main() -> None:

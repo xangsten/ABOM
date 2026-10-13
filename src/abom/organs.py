@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from abom.llm import ainvoke_structured, as_text, make_llm
 from abom.prompts import HEART_PROMPT, KIDNEY_PROMPT
+from abom.usage import TOTAL
 
 MCP_SERVER_MODULE = "abom.servers.{organ}"
 
@@ -83,6 +84,9 @@ async def organ_node(state: dict) -> dict:
     client = MultiServerMCPClient(cfg["mcp"])
     server_name = next(iter(cfg["mcp"]))
     llm = make_llm()
+    usage_before = TOTAL.snapshot()
+    # callbacks -> собираем usage_metadata из обоих LLM-вызовов (см. abom/usage.py)
+    config = {"callbacks": [TOTAL]}
 
     # Держим одну MCP-сессию (один подпроцесс сервера) на весь вызов агента.
     async with client.session(server_name) as session:
@@ -94,9 +98,14 @@ async def organ_node(state: dict) -> dict:
             f"{format_params(read_view)}\n\n"
             f"Вызови инструменты по необходимости и опиши своё мнение."
         )
-        result = await agent.ainvoke({"messages": [HumanMessage(content=user_msg)]})
+        result = await agent.ainvoke(
+            {"messages": [HumanMessage(content=user_msg)]}, config
+        )
 
-    reasoning_text = as_text(result["messages"][-1].content)
+    last = result["messages"][-1]
+    reasoning_text = as_text(last.content)
+    # thinking-токены thinking-модели (в лог не печатались, но билятся)
+    thinking = last.additional_kwargs.get("reasoning_content") or ""
 
     # Второй вызов — структурированное мнение.
     # DeepSeek в thinking-режиме не поддерживает принудительный tool_choice,
@@ -112,6 +121,7 @@ async def organ_node(state: dict) -> dict:
             )),
             HumanMessage(content=reasoning_text),
         ],
+        config,
     )
 
     # Валидация write set + приведение типов
@@ -121,8 +131,11 @@ async def organ_node(state: dict) -> dict:
         if k in cfg["writes"] and isinstance(v, (int, float))
     }
 
+    print(f"[{organ_name}] agent: answer={len(reasoning_text)} симв., "
+          f"thinking={len(thinking)} симв.")
     print(f"[{organ_name}] reasoning: {opinion.reasoning}")
     print(f"[{organ_name}] proposed: {opinion.proposed_params} "
           f"(conf={opinion.confidence:.2f})")
+    print(f"[{organ_name}] tokens: {TOTAL.delta(usage_before)}")
 
     return {"opinions": [{"organ": organ_name, "opinion": opinion}]}
