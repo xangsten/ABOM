@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from langgraph.graph import StateGraph, START, END
 
-from abom.merge import fan_out, merge_node, should_continue
+from abom.merge import fan_out, merge_node, route_after_merge
 from abom.organs import organ_node
 from abom.state import BodyState
 
@@ -11,7 +11,10 @@ from abom.state import BodyState
 def build_graph():
     """Собирает и компилирует граф симуляции.
 
-    START -> fan_out(organ xN) -> organ -> merge -> (organ | END)
+    START -> fan_out(Send к органам) -> organ -> merge -> (fan_out | END)
+
+    Ветка продолжения снова уходит через fan_out (Send), а не напрямую в
+    `organ`, чтобы узел всегда получал `organ_name` в payload.
     """
     g = StateGraph(BodyState)
     g.add_node("organ", organ_node)
@@ -19,8 +22,5 @@ def build_graph():
 
     g.add_conditional_edges(START, fan_out, ["organ"])
     g.add_edge("organ", "merge")
-    g.add_conditional_edges("merge", should_continue, {
-        "continue": "organ",
-        "end": END,
-    })
+    g.add_conditional_edges("merge", route_after_merge, {"end": END})
     return g.compile()

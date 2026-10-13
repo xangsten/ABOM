@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import sys
-from typing import cast
 
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -14,7 +13,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 from pydantic import BaseModel, Field
 
-from abom.llm import make_llm
+from abom.llm import ainvoke_structured, as_text, make_llm
 from abom.prompts import HEART_PROMPT, KIDNEY_PROMPT
 
 MCP_SERVER_MODULE = "abom.servers.{organ}"
@@ -74,16 +73,6 @@ def format_params(params: dict[str, float]) -> str:
     return "\n".join(f"  {k}: {v:.3f}" for k, v in sorted(params.items()))
 
 
-def _as_text(content) -> str:
-    """Ответ модели может быть строкой или списком контент-блоков."""
-    if isinstance(content, list):
-        return "".join(
-            part.get("text", "") if isinstance(part, dict) else str(part)
-            for part in content
-        )
-    return content
-
-
 async def organ_node(state: dict) -> dict:
     organ_name = state["organ_name"]
     cfg = ORGANS[organ_name]
@@ -107,20 +96,22 @@ async def organ_node(state: dict) -> dict:
         )
         result = await agent.ainvoke({"messages": [HumanMessage(content=user_msg)]})
 
-    reasoning_text = _as_text(result["messages"][-1].content)
+    reasoning_text = as_text(result["messages"][-1].content)
 
-    # Второй вызов — структурированное мнение
-    struct_llm = make_llm().with_structured_output(OrganOpinion)
-    opinion = cast(
+    # Второй вызов — структурированное мнение.
+    # DeepSeek в thinking-режиме не поддерживает принудительный tool_choice,
+    # поэтому ainvoke_structured идёт через json_mode с фолбэком (см. abom/llm.py).
+    opinion = await ainvoke_structured(
+        make_llm(),
         OrganOpinion,
-        await struct_llm.ainvoke([
+        [
             SystemMessage(content=(
                 f"Ты — {organ_name}. На основе анализа ниже выдай структурированное мнение. "
                 f"Можно предлагать ТОЛЬКО эти параметры: {cfg['writes']}. "
                 f"Если значение не обосновано — не указывай его."
             )),
             HumanMessage(content=reasoning_text),
-        ]),
+        ],
     )
 
     # Валидация write set + приведение типов

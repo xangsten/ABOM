@@ -81,3 +81,17 @@ def should_continue(state: BodyState) -> str:
             print(f"[graph] converged after {state['iteration']} iterations")
             return "end"
     return "continue"
+
+
+def route_after_merge(state: BodyState):
+    """Маршрут после merge: повторный fan-out к органам либо завершение.
+
+    Возвращает список `Send` (LangGraph сам разошлёт их по узлам) либо "end".
+    Благодаря этому цикл повторяет ТОТ ЖЕ fan-out, что и на старте, поэтому
+    узел `organ` всегда получает payload с ключом `organ_name` (иначе —
+    KeyError при прямом переходе merge -> organ с полным состоянием).
+    """
+    if should_continue(state) == "end":
+        return "end"
+    return fan_out(state)
+
