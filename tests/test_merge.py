@@ -4,7 +4,7 @@ import asyncio
 import pytest
 
 from abom.config import INITIAL_BODY, PHYSIO_LIMITS
-from abom.merge import merge_node, should_continue
+from abom.merge import merge_node, normalized_diff, should_continue
 from abom.organs import OrganOpinion
 
 
@@ -102,3 +102,26 @@ def test_should_continue_not_converged_on_big_diff():
         "history": [{"iter": 1, "body": a}, {"iter": 2, "body": b}],
     }
     assert should_continue(state) == "continue"
+
+
+def test_normalized_diff_scales_by_param_range():
+    # +16 мм рт.ст. по BP при диапазоне 160 -> вклад ровно 0.1
+    a = dict(INITIAL_BODY)
+    b = dict(INITIAL_BODY)
+    b["blood_pressure"] += 16.0
+    assert normalized_diff(a, b) == pytest.approx(0.1)
+
+
+def test_normalized_diff_small_params_comparable_to_big():
+    # Мелкомасштабный O2: 0.05 из диапазона 0.5 -> вклад 0.1 (как 16 по BP)
+    a = dict(INITIAL_BODY)
+    b = dict(INITIAL_BODY)
+    b["oxygen_saturation"] += 0.05
+    assert normalized_diff(a, b) == pytest.approx(0.1)
+
+
+def test_normalized_diff_ignores_unknown_params():
+    a = {"heart_rate": 60.0}
+    b = {"heart_rate": 60.0, "unknown": 1e9}
+    assert normalized_diff(a, b) == 0.0
+

@@ -24,6 +24,10 @@ from pydantic import BaseModel
 # Замени на свою модель при необходимости (например, deepseek-v4.1-flash).
 MODEL = "deepseek-flash"
 
+# Thinking-модель тратит output-токены и на «размышления», поэтому 1024 мало:
+# вывод обрезался (LengthFinishReasonError) и включался лишний фолбэк-запрос.
+MAX_TOKENS = 4096
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -33,7 +37,7 @@ def make_llm() -> ChatDeepSeek:
     Ключ берётся из переменной окружения DEEPSEEK_API_KEY
     (её подхватывает python-dotenv из .env в точке входа).
     """
-    return ChatDeepSeek(model=MODEL, temperature=0.0, max_tokens=1024)
+    return ChatDeepSeek(model=MODEL, temperature=0.0, max_tokens=MAX_TOKENS)
 
 
 def as_text(content) -> str:

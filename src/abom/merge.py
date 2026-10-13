@@ -7,8 +7,9 @@ from abom.config import AUTHORITY, PHYSIO_LIMITS
 from abom.organs import ORGANS
 from abom.state import BodyState
 
-# Порог сходимости по сумме |Δ| между двумя последними снимками.
-CONVERGENCE_EPS = 0.5
+# Порог сходимости по НОРМИРОВАННОЙ сумме |Δ| (доля от диапазона параметра).
+# 0.05 ≈ суммарное движение меньше ~0.4% диапазона на каждый из 13 параметров.
+CONVERGENCE_EPS = 0.05
 
 
 def fan_out(state: BodyState) -> list[Send]:
@@ -67,16 +68,30 @@ async def merge_node(state: BodyState) -> dict:
     }
 
 
+def normalized_diff(prev: dict[str, float], curr: dict[str, float]) -> float:
+    """Сумма |Δ| по параметрам, нормированная на диапазон PHYSIO_LIMITS.
+
+    Каждое изменение измеряется в долях допустимого диапазона параметра,
+    поэтому вклады mmHg, ммоль/л, литров и долей сатурации сопоставимы.
+    """
+    total = 0.0
+    for k, (lo, hi) in PHYSIO_LIMITS.items():
+        if k in prev and k in curr:
+            span = hi - lo
+            if span > 0:
+                total += abs(curr[k] - prev[k]) / span
+    return total
+
+
 def should_continue(state: BodyState) -> str:
     if state["iteration"] >= state["max_iterations"]:
         return "end"
-    # Критерий сходимости
+    # Критерий сходимости (нормированный)
     if state["iteration"] >= 2:
-        prev = state["history"][-2]["body"]
-        curr = state["history"][-1]["body"]
-        diff = sum(
-            abs(curr[k] - prev[k]) for k in curr if isinstance(curr[k], (int, float))
+        diff = normalized_diff(
+            state["history"][-2]["body"], state["history"][-1]["body"]
         )
+        print(f"[graph] normalized diff = {diff:.4f} (eps={CONVERGENCE_EPS})")
         if diff < CONVERGENCE_EPS:
             print(f"[graph] converged after {state['iteration']} iterations")
             return "end"
