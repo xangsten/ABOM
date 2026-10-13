@@ -47,5 +47,9 @@ def urine_output(gfr: float, aldosterone: float) -> dict:
     return {"urine_output": round(max(0.1, base), 3)}
 
 
+def main() -> None:
+    mcp.run()  # stdio по умолчанию
+
+
 if __name__ == "__main__":
-    mcp.run()
+    main()

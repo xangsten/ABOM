@@ -12,18 +12,36 @@
 Граф: `START → fan_out(Send к обоим органам) → organ → merge → (organ|END)`.
 Выход — по `max_iterations` или по сходимости.
 
-## Файлы
+## Структура
 
-| Файл | Назначение |
-|---|---|
-| `main.py` | Состояние, граф, узлы органов и `merge`, точка входа |
-| `heart_mcp.py` | MCP-сервер `HeartModel` (CO, MAP, барорефлекс) |
-| `kidney_mcp.py` | MCP-сервер `KidneyModel` (GFR, Na-баланс, диурез) |
-| `.env.example` | Шаблон окружения (ключ DeepSeek) |
+```
+ABOM/
+├── main.py                  # тонкая точка входа: python main.py
+├── pyproject.toml
+├── README.md
+├── .env / .env.example
+├── tests/                   # pytest (ключ DeepSeek не нужен)
+└── src/abom/
+    ├── __init__.py          # cli() для console-script `abom`
+    ├── app.py               # точка входа симуляции (main)
+    ├── graph.py             # сборка графа LangGraph
+    ├── organs.py            # ORGANS, OrganOpinion, organ_node
+    ├── merge.py             # merge_node, fan_out, should_continue
+    ├── state.py             # BodyState, opinions_reducer
+    ├── config.py            # PHYSIO_LIMITS, AUTHORITY, INITIAL_BODY
+    ├── prompts.py           # системные промпты органов
+    ├── llm.py               # make_llm() (DeepSeek)
+    └── servers/
+        ├── heart.py         # MCP-сервер сердца
+        └── kidney.py        # MCP-сервер почек
+```
 
-> MCP-серверы используют `FastMCP` из официального SDK `mcp` 1.x
+MCP-серверы запускаются как модули пакета (`python -m abom.servers.heart` /
+`abom.servers.kidney`, transport stdio).
+
+> Внутри `servers/*` используется `FastMCP` из официального SDK `mcp` 1.x
 > (`from mcp.server.fastmcp import FastMCP`), а не отдельный пакет `fastmcp`:
-> отдельный `fastmcp>=4` тянет `mcp 2.x`, который несовместим с
+> отдельный `fastmcp>=4` тянет `mcp 2.x`, несовместимый с
 > `langchain-mcp-adapters`.
 
 ## Установка
@@ -54,12 +72,23 @@ export DEEPSEEK_API_KEY=sk-...
 ## Запуск
 
 ```bash
-uv run python main.py
-# или
+cp .env.example .env      # затем вставь свой ключ DeepSeek в .env
+
+uv run python main.py     # или: uv run abom
+# или напрямую интерпретатором venv:
 .venv/bin/python main.py
 ```
 
 Если ключ не задан — программа завершится с понятным сообщением.
+
+## Тесты
+
+```bash
+uv run pytest
+```
+
+`tests/test_servers.py` поднимает реальные MCP-серверы как подпроцессы
+(`python -m abom.servers.<organ>`), поэтому чуть медленнее остальных.
 
 ## Зависимости (совместимый набор)
 
@@ -76,5 +105,5 @@ uv run python main.py
 - Критерий сходимости (`sum(|Δ|) < 0.5`) не нормирован по масштабу параметров.
 - `cardiac_output` пересчитывается как производная и не клиппится отдельно.
 - Ошибки MCP-серверов / API-вызовов отдельно не обрабатываются.
-- `[project.scripts] abom = "abom:main"` в `pyproject.toml` указывает на
-  заглушку в `src/abom/`; канонический вход сейчас — `main.py`.
+- `[project.scripts] abom = "abom:cli"` — console-script пакета; `main.py` в
+  корне — тонкий шим для запуска как `python main.py`.

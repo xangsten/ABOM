@@ -47,5 +47,9 @@ def baroreflex_suggested_hr(
     return {"suggested_heart_rate": round(target, 1)}
 
 
-if __name__ == "__main__":
+def main() -> None:
     mcp.run()  # stdio по умолчанию
+
+
+if __name__ == "__main__":
+    main()
